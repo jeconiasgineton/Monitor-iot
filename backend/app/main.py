@@ -1,8 +1,10 @@
 """API do piloto: recebe telemetria e heartbeat dos dispositivos via HTTPS."""
 
+import hmac
+import os
 import time
 
-from fastapi import Depends, FastAPI, Header, HTTPException, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, status
 
 from .regras import Limites, avaliar_telemetria
 from .repositorio import Dispositivo, RepositorioMemoria
@@ -73,6 +75,26 @@ def criar_app(repo: RepositorioMemoria | None = None, limites: Limites | None = 
         repo.fechar_alerta(dispositivo.id, "offline")
         repo.fechar_alerta(dispositivo.id, "sem_heartbeat")
         return {"status": "aceita"}
+
+    def leitura_autorizada(authorization: str | None = Header(default=None)) -> None:
+        """Leitura para painel e app. Usa API_LEITURA_TOKEN; sem essa variável, a leitura fica fechada."""
+        esperado = os.environ.get("API_LEITURA_TOKEN")
+        if not esperado:
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                                detail="Leitura não configurada")
+        recebido = ""
+        if authorization and authorization.startswith("Bearer "):
+            recebido = authorization[len("Bearer "):].strip()
+        if not hmac.compare_digest(recebido, esperado):
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token de leitura inválido")
+
+    @app.get("/v1/dispositivos/{dispositivo_id}/alertas", dependencies=[Depends(leitura_autorizada)])
+    def listar_alertas(dispositivo_id: str, somente_abertos: bool = Query(default=True)):
+        return {"alertas": app.state.repo.listar_alertas(dispositivo_id, somente_abertos)}
+
+    @app.get("/v1/dispositivos/{dispositivo_id}/telemetria", dependencies=[Depends(leitura_autorizada)])
+    def listar_telemetria(dispositivo_id: str, limite: int = Query(default=100, ge=1, le=1000)):
+        return {"leituras": app.state.repo.listar_telemetria(dispositivo_id, limite)}
 
     return app
 

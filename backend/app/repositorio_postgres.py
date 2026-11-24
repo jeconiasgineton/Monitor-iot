@@ -145,3 +145,35 @@ class RepositorioPostgres:
                    WHERE dispositivo_id = %s AND tipo = %s AND fechado_em IS NULL""",
                 (dispositivo_id, tipo),
             )
+
+    # ---------- Leitura para painel e app ----------
+    def listar_alertas(self, dispositivo_id: str, somente_abertos: bool = True) -> list[dict]:
+        filtro = "AND fechado_em IS NULL" if somente_abertos else ""
+        with self._conexao() as con:
+            linhas = con.execute(
+                f"""SELECT id, tipo, severidade, mensagem, aberto_em, fechado_em
+                    FROM alerta WHERE dispositivo_id = %s {filtro}
+                    ORDER BY aberto_em DESC LIMIT 200""",
+                (dispositivo_id,),
+            ).fetchall()
+        return [
+            {"id": l[0], "tipo": l[1], "severidade": l[2], "mensagem": l[3],
+             "aberto_em": l[4].isoformat(), "fechado_em": l[5].isoformat() if l[5] else None}
+            for l in linhas
+        ]
+
+    def listar_telemetria(self, dispositivo_id: str, limite: int = 100) -> list[dict]:
+        with self._conexao() as con:
+            linhas = con.execute(
+                """SELECT recebido_em, medido_em, seq, corrente_rms_a, corrente_max_a, corrente_min_a
+                   FROM telemetria WHERE dispositivo_id = %s
+                   ORDER BY recebido_em DESC, seq DESC LIMIT %s""",
+                (dispositivo_id, limite),
+            ).fetchall()
+        return [
+            {"recebido_em": l[0].isoformat(),
+             "medido_em": l[1].isoformat() if l[1] else None,
+             "seq": l[2], "corrente_rms_a": float(l[3]),
+             "corrente_max_a": float(l[4]), "corrente_min_a": float(l[5])}
+            for l in linhas
+        ]

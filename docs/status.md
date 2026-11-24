@@ -16,7 +16,7 @@ Atualizado: 2026-11-24
 - Limitação conhecida: o buffer fica em RAM. Mensagens não enviadas se perdem em reinício. A versão com armazenamento em flash (LittleFS) fica para depois dos testes.
 - Transporte: HTTPS POST para a API (sem MQTT), com token por dispositivo. Trocado após a decisão de hospedagem.
 - Pendências no `config.h`: identificadores, Wi-Fi, host e token da API, certificado CA, fator de calibração.
-- Não compilado após a troca de MQTT para HTTPS. Confirmar a compilação com as bibliotecas do PlatformIO.
+- Não compilado após a troca de MQTT para HTTPS. Tentativa de compilar com `pio run -e esp32dev` bloqueada: o ambiente de desenvolvimento não consegue baixar a plataforma `espressif32` (proxy). Compilar na máquina local com PlatformIO instalado.
 
 ## Fase 3: Backend e nuvem
 - Rascunho em `backend/`, com 15 testes passando. Usa dados fictícios, marcados em `backend/README.md`.
@@ -28,7 +28,10 @@ Atualizado: 2026-11-24
 - Gravação no Neon confirmada: após configurar `DATABASE_URL` nas variáveis de ambiente do projeto e fazer redeploy, o `POST /v1/status` de teste foi gravado em `dispositivo.ultimo_status`. O `ts` de teste (1790000000) aparece como 2026-09-21 14:13:20+00; é um valor fictício.
 - Teste de `POST /v1/status` com token fictício e corpo válido: resposta `{"status": "aceita"}`. Antes, o campo `v` foi enviado como texto e a API retornou 422, o que confirmou a validação do schema.
 - Projetos de teste `monitor-iot-n5qm` e `monitor-iot-wh18` foram removidos.
-- Pendente: conectar a integração GitHub no projeto `monitor-iot`, e implementar a leitura de alertas para o painel e o app.
+- Integração GitHub conectada ao projeto `monitor-iot`, com Root Directory `backend` e framework FastAPI. Deploy com essa configuração gravou status no Neon.
+- Leitura para painel e app implementada: `GET /v1/dispositivos/{id}/alertas` (padrão: só abertos; `?somente_abertos=false` traz todos) e `GET /v1/dispositivos/{id}/telemetria?limite=N`. Exigem o token de leitura da variável `API_LEITURA_TOKEN`; sem ela, respondem 503.
+- Testes: 24 passando, incluindo PostgreSQL. As consultas de leitura no Postgres foram validadas em banco de teste.
+- Pendente: definir como painel e app se autenticam em produção (token de leitura único ou login por usuário), e configurar `API_LEITURA_TOKEN` na Vercel.
 - Stack definida: Python com FastAPI na Vercel, banco PostgreSQL com TimescaleDB no Neon, código e CI no GitHub.
 - Ingestão por HTTPS direto do ESP32 (sem broker MQTT). Ver `docs/decisoes.md`.
 - Contrato de mensagens em `docs/contrato-mensagens.md` (versão 0.2).

@@ -79,3 +79,19 @@ class RepositorioMemoria:
         a = self.alerta_aberto(dispositivo_id, tipo)
         if a:
             a.aberto = False
+
+    # ---------- Leitura para painel e app ----------
+    def listar_alertas(self, dispositivo_id: str, somente_abertos: bool = True) -> list[dict]:
+        return [
+            {"id": a.id, "tipo": a.tipo, "severidade": a.severidade,
+             "mensagem": a.mensagem, "aberto": a.aberto}
+            for a in reversed(self.alertas)
+            if a.dispositivo_id == dispositivo_id and (a.aberto or not somente_abertos)
+        ]
+
+    def listar_telemetria(self, dispositivo_id: str, limite: int = 100) -> list[dict]:
+        leituras = [t for t in self.telemetrias if t["dispositivo_id"] == dispositivo_id]
+        return [
+            {k: v for k, v in t.items() if k != "dispositivo_id"}
+            for t in reversed(leituras[-limite:])
+        ]
