@@ -16,7 +16,7 @@ Atualizado: 2026-11-24
 - Limitação conhecida: o buffer fica em RAM. Mensagens não enviadas se perdem em reinício. A versão com armazenamento em flash (LittleFS) fica para depois dos testes.
 - Transporte: HTTPS POST para a API (sem MQTT), com token por dispositivo. Trocado após a decisão de hospedagem.
 - Pendências no `config.h`: identificadores, Wi-Fi, host e token da API, certificado CA, fator de calibração.
-- Não compilado após a troca de MQTT para HTTPS. Tentativa de compilar com `pio run -e esp32dev` bloqueada: o ambiente de desenvolvimento não consegue baixar a plataforma `espressif32` (proxy). Compilar na máquina local com PlatformIO instalado.
+- Compilação verificada após a troca de MQTT para HTTPS: `pio run -e esp32dev` passa no GitHub Actions (workflow `.github/workflows/firmware.yml`, roda a cada push em `firmware/`). Não foi possível compilar no ambiente de desenvolvimento, porque o proxy bloqueia a plataforma `espressif32`. Binário disponível como artefato do workflow.
 
 ## Fase 3: Backend e nuvem
 - Rascunho em `backend/`, com 15 testes passando. Usa dados fictícios, marcados em `backend/README.md`.
