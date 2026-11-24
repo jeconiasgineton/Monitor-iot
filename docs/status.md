@@ -24,10 +24,11 @@ Atualizado: 2026-11-24
 - Repositório para PostgreSQL/Neon escrito (`backend/app/repositorio_postgres.py`) e testado contra PostgreSQL 16 local. Os 20 testes passam.
 - Esquema `backend/sql/schema.sql` aplicado e testado localmente. `backend/sql/timescale.sql` ainda não testado, pois o TimescaleDB não está instalado no ambiente de teste.
 - Neon (projeto Monitor-iot, id `floral-waterfall-24496607`, região `aws-sa-east-1`, PostgreSQL 18): esquema aplicado, TimescaleDB ativo com `telemetria` como hypertable, dados fictícios carregados. Hash do token verificado contra o backend.
-- Deploy de produção na Vercel: `https://monitor-iot-wh18.vercel.app` (projeto `monitor-iot-wh18`, time FielSoft Team). Rotas `/docs`, `/v1/status` e `/v1/telemetria` respondem.
+- Deploy de produção oficial na Vercel: `https://monitor-iot-seven.vercel.app` (projeto `monitor-iot`, time FielSoft Team). Rotas `/docs`, `/v1/status` e `/v1/telemetria` respondem.
+- Gravação no Neon confirmada: após configurar `DATABASE_URL` nas variáveis de ambiente do projeto e fazer redeploy, o `POST /v1/status` de teste foi gravado em `dispositivo.ultimo_status`. O `ts` de teste (1790000000) aparece como 2026-09-21 14:13:20+00; é um valor fictício.
 - Teste de `POST /v1/status` com token fictício e corpo válido: resposta `{"status": "aceita"}`. Antes, o campo `v` foi enviado como texto e a API retornou 422, o que confirmou a validação do schema.
-- Projeto `monitor-iot-n5qm` também existe na Vercel, com a mesma API. Não é o oficial e pode ser removido.
-- Pendente: confirmar `DATABASE_URL` nas variáveis de ambiente do projeto `monitor-iot-wh18`, conectar a integração GitHub, e implementar a leitura de alertas para o painel e o app.
+- Projetos de teste `monitor-iot-n5qm` e `monitor-iot-wh18` foram removidos.
+- Pendente: conectar a integração GitHub no projeto `monitor-iot`, e implementar a leitura de alertas para o painel e o app.
 - Stack definida: Python com FastAPI na Vercel, banco PostgreSQL com TimescaleDB no Neon, código e CI no GitHub.
 - Ingestão por HTTPS direto do ESP32 (sem broker MQTT). Ver `docs/decisoes.md`.
 - Contrato de mensagens em `docs/contrato-mensagens.md` (versão 0.2).
