@@ -177,3 +177,65 @@ class RepositorioPostgres:
              "corrente_max_a": float(l[4]), "corrente_min_a": float(l[5])}
             for l in linhas
         ]
+
+    # ---------- Usuários, vínculos e sessões ----------
+    def criar_usuario(self, email: str, senha_hash: str, perfil: str) -> int:
+        with self._conexao() as con:
+            return con.execute(
+                "INSERT INTO usuario (email, senha_hash, perfil) VALUES (%s, %s, %s) RETURNING id",
+                (email.lower(), senha_hash, perfil),
+            ).fetchone()[0]
+
+    def usuario_por_email(self, email: str) -> dict | None:
+        with self._conexao() as con:
+            linha = con.execute(
+                "SELECT id, senha_hash, perfil, ativo FROM usuario WHERE email = %s",
+                (email.lower(),),
+            ).fetchone()
+        if linha is None:
+            return None
+        return {"id": linha[0], "senha_hash": linha[1], "perfil": linha[2], "ativo": linha[3]}
+
+    def vincular_usuario_condominio(self, usuario_id: int, condominio_id: str) -> None:
+        with self._conexao() as con:
+            con.execute(
+                """INSERT INTO usuario_condominio (usuario_id, condominio_id)
+                   VALUES (%s, %s) ON CONFLICT DO NOTHING""",
+                (usuario_id, condominio_id),
+            )
+
+    def condominios_do_usuario(self, usuario_id: int) -> set[str]:
+        with self._conexao() as con:
+            linhas = con.execute(
+                "SELECT condominio_id FROM usuario_condominio WHERE usuario_id = %s",
+                (usuario_id,),
+            ).fetchall()
+        return {l[0] for l in linhas}
+
+    def criar_sessao(self, usuario_id: int, token_hash: str, expira_epoch: float) -> None:
+        with self._conexao() as con:
+            con.execute(
+                "INSERT INTO sessao (token_hash, usuario_id, expira_em) VALUES (%s, %s, to_timestamp(%s))",
+                (token_hash, usuario_id, expira_epoch),
+            )
+
+    def usuario_por_sessao(self, token_hash: str, agora_epoch: float) -> dict | None:
+        with self._conexao() as con:
+            linha = con.execute(
+                """SELECT u.id, u.perfil FROM sessao s
+                   JOIN usuario u ON u.id = s.usuario_id
+                   WHERE s.token_hash = %s AND s.expira_em > to_timestamp(%s) AND u.ativo = TRUE""",
+                (token_hash, agora_epoch),
+            ).fetchone()
+        return None if linha is None else {"id": linha[0], "perfil": linha[1]}
+
+    def condominio_do_dispositivo(self, dispositivo_id: str) -> str | None:
+        with self._conexao() as con:
+            linha = con.execute(
+                """SELECT c.condominio_id FROM dispositivo d
+                   JOIN bomba b ON b.id = d.bomba_id
+                   JOIN casa_maquinas c ON c.id = b.casa_id
+                   WHERE d.id = %s""",
+                (dispositivo_id,),
+            ).fetchone()
+        return linha[0] if linha else None

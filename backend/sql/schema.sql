@@ -64,3 +64,27 @@ CREATE TABLE IF NOT EXISTS alerta (
 -- Um alerta aberto por tipo e dispositivo (deduplicação no banco)
 CREATE UNIQUE INDEX IF NOT EXISTS alerta_aberto_unico
     ON alerta (dispositivo_id, tipo) WHERE fechado_em IS NULL;
+
+-- Usuários do painel e do app (login por e-mail e senha).
+CREATE TABLE IF NOT EXISTS usuario (
+    id          BIGSERIAL PRIMARY KEY,
+    email       TEXT NOT NULL UNIQUE,            -- sempre em minúsculas
+    senha_hash  TEXT NOT NULL,                   -- scrypt; a senha em si não é armazenada
+    perfil      TEXT NOT NULL CHECK (perfil IN ('administrador', 'zelador')),
+    ativo       BOOLEAN NOT NULL DEFAULT TRUE,
+    criado_em   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Quais condomínios um zelador pode ver. Administrador vê todos.
+CREATE TABLE IF NOT EXISTS usuario_condominio (
+    usuario_id      BIGINT NOT NULL REFERENCES usuario(id) ON DELETE CASCADE,
+    condominio_id   TEXT NOT NULL REFERENCES condominio(id),
+    PRIMARY KEY (usuario_id, condominio_id)
+);
+
+-- Sessões de login. Guarda só o hash do token.
+CREATE TABLE IF NOT EXISTS sessao (
+    token_hash  TEXT PRIMARY KEY,
+    usuario_id  BIGINT NOT NULL REFERENCES usuario(id) ON DELETE CASCADE,
+    expira_em   TIMESTAMPTZ NOT NULL
+);

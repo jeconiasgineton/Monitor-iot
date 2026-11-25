@@ -44,6 +44,10 @@ class RepositorioMemoria:
     telemetrias: list[dict] = field(default_factory=list)
     alertas: list[AlertaAberto] = field(default_factory=list)
     _proximo_id: int = 1
+    usuarios: dict[int, dict] = field(default_factory=dict)
+    usuario_condominios: set[tuple[int, str]] = field(default_factory=set)
+    sessoes: dict[str, tuple[int, float]] = field(default_factory=dict)
+    _proximo_usuario: int = 1
 
     def cadastrar(self, dispositivo: Dispositivo) -> None:
         self.dispositivos[dispositivo.token_hash] = dispositivo
@@ -95,3 +99,42 @@ class RepositorioMemoria:
             {k: v for k, v in t.items() if k != "dispositivo_id"}
             for t in reversed(leituras[-limite:])
         ]
+
+    # ---------- Usuários, vínculos e sessões ----------
+    def criar_usuario(self, email: str, senha_hash: str, perfil: str) -> int:
+        uid = self._proximo_usuario
+        self._proximo_usuario += 1
+        self.usuarios[uid] = {"id": uid, "email": email.lower(), "senha_hash": senha_hash,
+                              "perfil": perfil, "ativo": True}
+        return uid
+
+    def usuario_por_email(self, email: str) -> dict | None:
+        for u in self.usuarios.values():
+            if u["email"] == email.lower():
+                return dict(u)
+        return None
+
+    def vincular_usuario_condominio(self, usuario_id: int, condominio_id: str) -> None:
+        self.usuario_condominios.add((usuario_id, condominio_id))
+
+    def condominios_do_usuario(self, usuario_id: int) -> set[str]:
+        return {c for (u, c) in self.usuario_condominios if u == usuario_id}
+
+    def criar_sessao(self, usuario_id: int, token_hash: str, expira_epoch: float) -> None:
+        self.sessoes[token_hash] = (usuario_id, expira_epoch)
+
+    def usuario_por_sessao(self, token_hash: str, agora_epoch: float) -> dict | None:
+        sessao = self.sessoes.get(token_hash)
+        if sessao is None:
+            return None
+        usuario_id, expira = sessao
+        u = self.usuarios.get(usuario_id)
+        if expira <= agora_epoch or u is None or not u["ativo"]:
+            return None
+        return {"id": u["id"], "perfil": u["perfil"]}
+
+    def condominio_do_dispositivo(self, dispositivo_id: str) -> str | None:
+        for d in self.dispositivos.values():
+            if d.id == dispositivo_id:
+                return d.condominio_id
+        return None

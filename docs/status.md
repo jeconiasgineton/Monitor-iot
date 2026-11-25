@@ -29,9 +29,10 @@ Atualizado: 2026-11-24
 - Teste de `POST /v1/status` com token fictício e corpo válido: resposta `{"status": "aceita"}`. Antes, o campo `v` foi enviado como texto e a API retornou 422, o que confirmou a validação do schema.
 - Projetos de teste `monitor-iot-n5qm` e `monitor-iot-wh18` foram removidos.
 - Integração GitHub conectada ao projeto `monitor-iot`, com Root Directory `backend` e framework FastAPI. Deploy com essa configuração gravou status no Neon.
-- Leitura para painel e app implementada: `GET /v1/dispositivos/{id}/alertas` (padrão: só abertos; `?somente_abertos=false` traz todos) e `GET /v1/dispositivos/{id}/telemetria?limite=N`. Exigem o token de leitura da variável `API_LEITURA_TOKEN`; sem ela, respondem 503.
-- Testes: 24 passando, incluindo PostgreSQL. As consultas de leitura no Postgres foram validadas em banco de teste.
-- Pendente: definir como painel e app se autenticam em produção (token de leitura único ou login por usuário), e configurar `API_LEITURA_TOKEN` na Vercel.
+- Leitura para painel e app com login por usuário (e-mail e senha). Perfis: administrador (vê todos os dispositivos) e zelador (vê só os condomínios vinculados). Rotas: `POST /v1/auth/login`, `GET /v1/dispositivos/{id}/alertas` (padrão: só abertos; `?somente_abertos=false` traz todos) e `GET /v1/dispositivos/{id}/telemetria?limite=N`. Sessão de 12 horas com token opaco, guardado só como hash. Dispositivo sem vínculo recebe 404, sem revelar se existe. Token fixo de leitura (`API_LEITURA_TOKEN`) foi removido.
+- Tabelas `usuario`, `usuario_condominio` e `sessao` criadas no Neon de produção.
+- Criação de usuários pela linha de comando: `python -m app.usuarios_cli criar EMAIL administrador` ou `... zelador EMAIL CONDOMINIO_ID`. Senha pedida no terminal. Requer `DATABASE_URL` no próprio terminal.
+- Pendente: criar o primeiro administrador em produção, com a `DATABASE_URL` do Neon só no terminal local, e confirmar o login pelo app.
 - Stack definida: Python com FastAPI na Vercel, banco PostgreSQL com TimescaleDB no Neon, código e CI no GitHub.
 - Ingestão por HTTPS direto do ESP32 (sem broker MQTT). Ver `docs/decisoes.md`.
 - Contrato de mensagens em `docs/contrato-mensagens.md` (versão 0.2).

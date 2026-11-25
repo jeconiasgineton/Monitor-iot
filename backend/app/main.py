@@ -1,14 +1,28 @@
-"""API do piloto: recebe telemetria e heartbeat dos dispositivos via HTTPS."""
+"""API do piloto: ingestão dos dispositivos e leitura para painel e app, com login por usuário."""
 
-import hmac
 import os
 import time
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, status
+from pydantic import BaseModel, Field
 
 from .regras import Limites, avaliar_telemetria
-from .repositorio import Dispositivo, RepositorioMemoria
+from .repositorio import Dispositivo, RepositorioMemoria, hash_token
 from .schemas import StatusIn, TelemetriaIn
+from .seguranca import novo_token, verificar_senha
+
+SESSAO_HORAS = 12
+
+
+class LoginIn(BaseModel):
+    email: str = Field(min_length=3, max_length=200)
+    senha: str = Field(min_length=1, max_length=200)
+
+
+def _bearer(authorization: str | None) -> str | None:
+    if authorization and authorization.startswith("Bearer "):
+        return authorization[len("Bearer "):].strip() or None
+    return None
 
 
 def criar_app(repo: RepositorioMemoria | None = None, limites: Limites | None = None) -> FastAPI:
@@ -17,13 +31,44 @@ def criar_app(repo: RepositorioMemoria | None = None, limites: Limites | None = 
     app.state.limites = limites or Limites()
 
     def dispositivo_autenticado(authorization: str | None = Header(default=None)) -> Dispositivo:
-        if not authorization or not authorization.startswith("Bearer "):
+        token = _bearer(authorization)
+        if not token:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token ausente")
-        token = authorization[len("Bearer "):].strip()
         dispositivo = app.state.repo.buscar_por_token(token)
         if dispositivo is None:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token inválido")
         return dispositivo
+
+    def usuario_logado(authorization: str | None = Header(default=None)) -> dict:
+        token = _bearer(authorization)
+        usuario = app.state.repo.usuario_por_sessao(hash_token(token), time.time()) if token else None
+        if usuario is None:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Sessão inválida ou expirada")
+        return usuario
+
+    def acesso_ao_dispositivo(dispositivo_id: str, usuario: dict = Depends(usuario_logado)) -> dict:
+        """Administrador vê todos os dispositivos. Zelador só vê os dos condomínios vinculados.
+        Para quem não tem acesso, a resposta é 404, sem revelar se o dispositivo existe."""
+        repo = app.state.repo
+        condominio = repo.condominio_do_dispositivo(dispositivo_id)
+        permitido = condominio is not None and (
+            usuario["perfil"] == "administrador"
+            or condominio in repo.condominios_do_usuario(usuario["id"])
+        )
+        if not permitido:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Dispositivo não encontrado")
+        return usuario
+
+    @app.post("/v1/auth/login", status_code=status.HTTP_200_OK)
+    def login(corpo: LoginIn):
+        repo = app.state.repo
+        usuario = repo.usuario_por_email(corpo.email.strip().lower())
+        if usuario is None or not usuario["ativo"] or not verificar_senha(corpo.senha, usuario["senha_hash"]):
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="E-mail ou senha inválidos")
+        token = novo_token()
+        expira = time.time() + SESSAO_HORAS * 3600
+        repo.criar_sessao(usuario["id"], hash_token(token), expira)
+        return {"token": token, "expira_em_epoch": int(expira)}
 
     @app.post("/v1/telemetria", status_code=status.HTTP_200_OK)
     def receber_telemetria(
@@ -76,24 +121,11 @@ def criar_app(repo: RepositorioMemoria | None = None, limites: Limites | None = 
         repo.fechar_alerta(dispositivo.id, "sem_heartbeat")
         return {"status": "aceita"}
 
-    def leitura_autorizada(authorization: str | None = Header(default=None)) -> None:
-        """Leitura para painel e app. Usa API_LEITURA_TOKEN; sem essa variável, a leitura fica fechada."""
-        esperado = os.environ.get("API_LEITURA_TOKEN")
-        if not esperado:
-            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                                detail="Leitura não configurada")
-        recebido = ""
-        if authorization and authorization.startswith("Bearer "):
-            recebido = authorization[len("Bearer "):].strip()
-        # Comparação em bytes: compare_digest não aceita texto com caracteres não ASCII.
-        if not hmac.compare_digest(recebido.encode("utf-8"), esperado.encode("utf-8")):
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token de leitura inválido")
-
-    @app.get("/v1/dispositivos/{dispositivo_id}/alertas", dependencies=[Depends(leitura_autorizada)])
+    @app.get("/v1/dispositivos/{dispositivo_id}/alertas", dependencies=[Depends(acesso_ao_dispositivo)])
     def listar_alertas(dispositivo_id: str, somente_abertos: bool = Query(default=True)):
         return {"alertas": app.state.repo.listar_alertas(dispositivo_id, somente_abertos)}
 
-    @app.get("/v1/dispositivos/{dispositivo_id}/telemetria", dependencies=[Depends(leitura_autorizada)])
+    @app.get("/v1/dispositivos/{dispositivo_id}/telemetria", dependencies=[Depends(acesso_ao_dispositivo)])
     def listar_telemetria(dispositivo_id: str, limite: int = Query(default=100, ge=1, le=1000)):
         return {"leituras": app.state.repo.listar_telemetria(dispositivo_id, limite)}
 
@@ -102,8 +134,6 @@ def criar_app(repo: RepositorioMemoria | None = None, limites: Limites | None = 
 
 def _repositorio_padrao():
     """Usa o Postgres quando DATABASE_URL estiver definida; senão, memória com dados fictícios."""
-    import os
-
     url = os.environ.get("DATABASE_URL")
     if url:
         from .repositorio_postgres import RepositorioPostgres
