@@ -85,6 +85,9 @@ class RepositorioMemoria:
             a.aberto = False
 
     # ---------- Leitura para painel e app ----------
+    def dispositivo_existe(self, dispositivo_id: str) -> bool:
+        return any(d.id == dispositivo_id for d in self.dispositivos.values())
+
     def listar_alertas(self, dispositivo_id: str, somente_abertos: bool = True) -> list[dict]:
         return [
             {"id": a.id, "tipo": a.tipo, "severidade": a.severidade,

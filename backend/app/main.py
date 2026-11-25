@@ -123,10 +123,12 @@ def criar_app(repo: RepositorioMemoria | None = None, limites: Limites | None = 
 
     @app.get("/v1/dispositivos/{dispositivo_id}/alertas", dependencies=[Depends(acesso_ao_dispositivo)])
     def listar_alertas(dispositivo_id: str, somente_abertos: bool = Query(default=True)):
+        exigir_dispositivo(dispositivo_id)
         return {"alertas": app.state.repo.listar_alertas(dispositivo_id, somente_abertos)}
 
     @app.get("/v1/dispositivos/{dispositivo_id}/telemetria", dependencies=[Depends(acesso_ao_dispositivo)])
     def listar_telemetria(dispositivo_id: str, limite: int = Query(default=100, ge=1, le=1000)):
+        exigir_dispositivo(dispositivo_id)
         return {"leituras": app.state.repo.listar_telemetria(dispositivo_id, limite)}
 
     return app

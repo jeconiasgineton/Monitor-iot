@@ -147,6 +147,13 @@ class RepositorioPostgres:
             )
 
     # ---------- Leitura para painel e app ----------
+    def dispositivo_existe(self, dispositivo_id: str) -> bool:
+        with self._conexao() as con:
+            linha = con.execute(
+                "SELECT 1 FROM dispositivo WHERE id = %s", (dispositivo_id,)
+            ).fetchone()
+        return linha is not None
+
     def listar_alertas(self, dispositivo_id: str, somente_abertos: bool = True) -> list[dict]:
         filtro = "AND fechado_em IS NULL" if somente_abertos else ""
         with self._conexao() as con:
