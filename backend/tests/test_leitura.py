@@ -67,3 +67,13 @@ def test_alerta_fechado_some_do_filtro_de_abertos(monkeypatch):
     assert abertos["alertas"] == []
     assert len(todos["alertas"]) == 1
     assert todos["alertas"][0]["aberto"] is False
+
+
+def test_token_de_leitura_com_caractere_nao_ascii_nao_gera_500(monkeypatch):
+    # Regressão: variável com acento causava TypeError em compare_digest (500 na Vercel).
+    monkeypatch.setenv("API_LEITURA_TOKEN", "leitura-çãö")
+    repo = carregar_dados_ficticios(RepositorioMemoria())
+    cliente = TestClient(criar_app(repo=repo))
+    r = cliente.get(f"/v1/dispositivos/{DISPOSITIVO}/alertas",
+                    headers={"Authorization": "Bearer leitura-errada"})
+    assert r.status_code == 401

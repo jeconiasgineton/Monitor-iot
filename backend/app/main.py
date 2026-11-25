@@ -85,7 +85,8 @@ def criar_app(repo: RepositorioMemoria | None = None, limites: Limites | None = 
         recebido = ""
         if authorization and authorization.startswith("Bearer "):
             recebido = authorization[len("Bearer "):].strip()
-        if not hmac.compare_digest(recebido, esperado):
+        # Comparação em bytes: compare_digest não aceita texto com caracteres não ASCII.
+        if not hmac.compare_digest(recebido.encode("utf-8"), esperado.encode("utf-8")):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token de leitura inválido")
 
     @app.get("/v1/dispositivos/{dispositivo_id}/alertas", dependencies=[Depends(leitura_autorizada)])
