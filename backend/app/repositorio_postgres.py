@@ -246,3 +246,29 @@ class RepositorioPostgres:
                 (dispositivo_id,),
             ).fetchone()
         return linha[0] if linha else None
+
+    def listar_dispositivos_do_usuario(self, usuario_id: int, perfil: str) -> list[dict]:
+        sql = """SELECT d.id, c.condominio_id, b.id FROM dispositivo d
+                 JOIN bomba b ON b.id = d.bomba_id
+                 JOIN casa_maquinas c ON c.id = b.casa_id
+                 WHERE d.ativo = TRUE"""
+        params: tuple = ()
+        if perfil != "administrador":
+            sql += """ AND c.condominio_id IN
+                       (SELECT condominio_id FROM usuario_condominio WHERE usuario_id = %s)"""
+            params = (usuario_id,)
+        sql += " ORDER BY d.id"
+        with self._conexao() as con:
+            linhas = con.execute(sql, params).fetchall()
+        return [{"id": l[0], "condominio_id": l[1], "bomba_id": l[2]} for l in linhas]
+
+    def senha_hash_do_usuario(self, usuario_id: int) -> str | None:
+        with self._conexao() as con:
+            linha = con.execute("SELECT senha_hash FROM usuario WHERE id = %s", (usuario_id,)).fetchone()
+        return linha[0] if linha else None
+
+    def trocar_senha(self, usuario_id: int, senha_hash: str) -> None:
+        with self._conexao(autocommit=False) as con:
+            con.execute("UPDATE usuario SET senha_hash = %s WHERE id = %s", (senha_hash, usuario_id))
+            con.execute("DELETE FROM sessao WHERE usuario_id = %s", (usuario_id,))
+            con.commit()

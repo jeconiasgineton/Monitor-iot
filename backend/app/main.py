@@ -4,12 +4,13 @@ import os
 import time
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, status
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
 from .regras import Limites, avaliar_telemetria
 from .repositorio import Dispositivo, RepositorioMemoria, hash_token
 from .schemas import StatusIn, TelemetriaIn
-from .seguranca import novo_token, verificar_senha
+from .seguranca import hash_senha, novo_token, verificar_senha
 
 SESSAO_HORAS = 12
 
@@ -17,6 +18,11 @@ SESSAO_HORAS = 12
 class LoginIn(BaseModel):
     email: str = Field(min_length=3, max_length=200)
     senha: str = Field(min_length=1, max_length=200)
+
+
+class TrocaSenhaIn(BaseModel):
+    senha_atual: str = Field(min_length=1, max_length=200)
+    senha_nova: str = Field(min_length=10, max_length=200)
 
 
 def _bearer(authorization: str | None) -> str | None:
@@ -120,6 +126,24 @@ def criar_app(repo: RepositorioMemoria | None = None, limites: Limites | None = 
         repo.fechar_alerta(dispositivo.id, "offline")
         repo.fechar_alerta(dispositivo.id, "sem_heartbeat")
         return {"status": "aceita"}
+
+    @app.post("/v1/auth/senha", status_code=status.HTTP_200_OK)
+    def trocar_senha(corpo: TrocaSenhaIn, usuario: dict = Depends(usuario_logado)):
+        repo = app.state.repo
+        armazenado = repo.senha_hash_do_usuario(usuario["id"])
+        if armazenado is None or not verificar_senha(corpo.senha_atual, armazenado):
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Senha atual incorreta")
+        repo.trocar_senha(usuario["id"], hash_senha(corpo.senha_nova))
+        return {"status": "senha_alterada"}
+
+    @app.get("/v1/dispositivos")
+    def listar_dispositivos(usuario: dict = Depends(usuario_logado)):
+        return {"dispositivos": app.state.repo.listar_dispositivos_do_usuario(usuario["id"], usuario["perfil"])}
+
+    @app.get("/painel", response_class=HTMLResponse, include_in_schema=False)
+    def painel():
+        from .painel_html import HTML
+        return HTMLResponse(content=HTML)
 
     @app.get("/v1/dispositivos/{dispositivo_id}/alertas", dependencies=[Depends(acesso_ao_dispositivo)])
     def listar_alertas(dispositivo_id: str, somente_abertos: bool = Query(default=True)):

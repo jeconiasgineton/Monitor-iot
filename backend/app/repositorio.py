@@ -141,3 +141,20 @@ class RepositorioMemoria:
             if d.id == dispositivo_id:
                 return d.condominio_id
         return None
+
+    def listar_dispositivos_do_usuario(self, usuario_id: int, perfil: str) -> list[dict]:
+        condominios = None if perfil == "administrador" else self.condominios_do_usuario(usuario_id)
+        return [
+            {"id": d.id, "condominio_id": d.condominio_id, "bomba_id": d.bomba_id}
+            for d in sorted(self.dispositivos.values(), key=lambda x: x.id)
+            if d.ativo and (condominios is None or d.condominio_id in condominios)
+        ]
+
+    def senha_hash_do_usuario(self, usuario_id: int) -> str | None:
+        u = self.usuarios.get(usuario_id)
+        return u["senha_hash"] if u else None
+
+    def trocar_senha(self, usuario_id: int, senha_hash: str) -> None:
+        self.usuarios[usuario_id]["senha_hash"] = senha_hash
+        # Encerra as sessões do usuário: ele precisa entrar de novo.
+        self.sessoes = {h: s for h, s in self.sessoes.items() if s[0] != usuario_id}
