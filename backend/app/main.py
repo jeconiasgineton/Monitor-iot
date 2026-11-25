@@ -89,12 +89,19 @@ def criar_app(repo: RepositorioMemoria | None = None, limites: Limites | None = 
         if not hmac.compare_digest(recebido.encode("utf-8"), esperado.encode("utf-8")):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token de leitura inválido")
 
+    def exigir_dispositivo(dispositivo_id: str) -> None:
+        if not app.state.repo.dispositivo_existe(dispositivo_id):
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                                detail="Dispositivo não encontrado")
+
     @app.get("/v1/dispositivos/{dispositivo_id}/alertas", dependencies=[Depends(leitura_autorizada)])
     def listar_alertas(dispositivo_id: str, somente_abertos: bool = Query(default=True)):
+        exigir_dispositivo(dispositivo_id)
         return {"alertas": app.state.repo.listar_alertas(dispositivo_id, somente_abertos)}
 
     @app.get("/v1/dispositivos/{dispositivo_id}/telemetria", dependencies=[Depends(leitura_autorizada)])
     def listar_telemetria(dispositivo_id: str, limite: int = Query(default=100, ge=1, le=1000)):
+        exigir_dispositivo(dispositivo_id)
         return {"leituras": app.state.repo.listar_telemetria(dispositivo_id, limite)}
 
     return app

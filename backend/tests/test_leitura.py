@@ -69,6 +69,22 @@ def test_alerta_fechado_some_do_filtro_de_abertos(monkeypatch):
     assert todos["alertas"][0]["aberto"] is False
 
 
+def test_dispositivo_inexistente_retorna_404(monkeypatch):
+    cliente, _ = _cliente(monkeypatch)
+    for rota in ("alertas", "telemetria"):
+        r = cliente.get(f"/v1/dispositivos/nao-existe/{rota}", headers=AUTH_LEITURA)
+        assert r.status_code == 404
+    # A autenticação vem antes: sem token válido continua 401, sem revelar existência.
+    r = cliente.get("/v1/dispositivos/nao-existe/alertas", headers=AUTH_DISPOSITIVO)
+    assert r.status_code == 401
+
+
+def test_dispositivo_existente_sem_dados_retorna_lista_vazia(monkeypatch):
+    cliente, _ = _cliente(monkeypatch)
+    r = cliente.get(f"/v1/dispositivos/{DISPOSITIVO}/alertas", headers=AUTH_LEITURA)
+    assert r.status_code == 200 and r.json() == {"alertas": []}
+
+
 def test_token_de_leitura_com_caractere_nao_ascii_nao_gera_500(monkeypatch):
     # Regressão: variável com acento causava TypeError em compare_digest (500 na Vercel).
     monkeypatch.setenv("API_LEITURA_TOKEN", "leitura-çãö")
