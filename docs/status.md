@@ -32,7 +32,11 @@ Atualizado: 2026-11-24
 - Leitura para painel e app com login por usuário (e-mail e senha). Perfis: administrador (vê todos os dispositivos) e zelador (vê só os condomínios vinculados). Rotas: `POST /v1/auth/login`, `GET /v1/dispositivos/{id}/alertas` (padrão: só abertos; `?somente_abertos=false` traz todos) e `GET /v1/dispositivos/{id}/telemetria?limite=N`. Sessão de 12 horas com token opaco, guardado só como hash. Dispositivo sem vínculo recebe 404, sem revelar se existe. Token fixo de leitura (`API_LEITURA_TOKEN`) foi removido.
 - Tabelas `usuario`, `usuario_condominio` e `sessao` criadas no Neon de produção.
 - Criação de usuários pela linha de comando: `python -m app.usuarios_cli criar EMAIL administrador` ou `... zelador EMAIL CONDOMINIO_ID`. Senha pedida no terminal. Requer `DATABASE_URL` no próprio terminal.
-- Pendente: criar o primeiro administrador em produção, com a `DATABASE_URL` do Neon só no terminal local, e confirmar o login pelo app.
+- Administrador criado em produção (`jeconias@gmail.com`), com senha temporária. Login e rotas de leitura testados pelo PowerShell.
+- Painel web em `/painel` no ar: login, lista de dispositivos por perfil, alertas abertos, gráfico de corrente e troca de senha (`POST /v1/auth/senha`, que encerra as sessões).
+- Leituras fictícias (5 telemetrias, seq 1 a 5) enviadas ao dispositivo-ficticio-001 em produção, para teste do painel.
+- Pendente: trocar a senha temporária do administrador pelo painel; criar zeladores de teste; apagar a variável `API_LEITURA_TOKEN` da Vercel, que não é mais usada.
+- Pendente: app Flutter com o mesmo login (Fase 4), começando pelo Android.
 - Stack definida: Python com FastAPI na Vercel, banco PostgreSQL com TimescaleDB no Neon, código e CI no GitHub.
 - Ingestão por HTTPS direto do ESP32 (sem broker MQTT). Ver `docs/decisoes.md`.
 - Contrato de mensagens em `docs/contrato-mensagens.md` (versão 0.2).
